@@ -12,7 +12,7 @@ anyhow = "1.0.96"
 env_logger = "0.11.6"
 rime = { package = "librime-sys", git = "https://github.com/lotem/librime-sys.git" }
 log = "0.4.26"
-structopt = "0.3.26"
+clap = { version = "4.0", features = ["derive"] }
 claims = "0.8.0"
 lazy_static = "1.5.0"
 git2 = "0.20.0"

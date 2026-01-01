@@ -2,16 +2,16 @@ use crate::package::RecipePackage;
 use crate::recipe::RecipeInfo;
 
 use anyhow::anyhow;
+use clap::Parser;
 use std::path::Path;
-use structopt::StructOpt;
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct DownloadParams {
     /// repository domain 倉庫域名
-    #[structopt(short, long)]
+    #[arg(short, long)]
     host: Option<String>,
     /// proxy server address 代理服務器地址
-    #[structopt(short, long)]
+    #[arg(short, long)]
     proxy: Option<String>,
 }
 
