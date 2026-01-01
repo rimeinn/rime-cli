@@ -5,24 +5,24 @@ use rime::{
 use std::ffi::{CStr, CString};
 use std::path::PathBuf;
 
-pub fn 設置引擎啓動參數(工作場地: &PathBuf) -> anyhow::Result<()> {
-    log::debug!("設置引擎啓動參數. 工作場地: {}", 工作場地.display());
-    std::fs::create_dir_all(工作場地)?;
-    let 場地〇 = CString::new(工作場地.to_str().ok_or(anyhow!("路徑編碼轉換錯誤"))?)?;
-    let 品名〇 = CString::new(env!("CARGO_PKG_NAME"))?;
-    let 版本〇 = CString::new(env!("CARGO_PKG_VERSION"))?;
-    let mut 啓動參數: RimeTraits = rime_struct_new!();
-    啓動參數.data_size = std::mem::size_of::<RimeTraits>() as std::ffi::c_int;
-    啓動參數.shared_data_dir = 場地〇.as_ptr();
-    啓動參數.user_data_dir = 場地〇.as_ptr();
-    啓動參數.distribution_name = 品名〇.as_ptr();
-    啓動參數.distribution_code_name = 品名〇.as_ptr();
-    啓動參數.distribution_version = 版本〇.as_ptr();
-    rime_api_call!(setup, &mut 啓動參數);
+pub fn setup_engine_traits(workspace: &PathBuf) -> anyhow::Result<()> {
+    log::debug!("設置引擎啓動參數. 工作場地: {}", workspace.display());
+    std::fs::create_dir_all(workspace)?;
+    let c_workspace = CString::new(workspace.to_str().ok_or(anyhow!("路徑編碼轉換錯誤"))?)?;
+    let c_distribution = CString::new(env!("CARGO_PKG_NAME"))?;
+    let c_version = CString::new(env!("CARGO_PKG_VERSION"))?;
+    let mut traits: RimeTraits = rime_struct_new!();
+    traits.data_size = std::mem::size_of::<RimeTraits>() as std::ffi::c_int;
+    traits.shared_data_dir = c_workspace.as_ptr();
+    traits.user_data_dir = c_workspace.as_ptr();
+    traits.distribution_name = c_distribution.as_ptr();
+    traits.distribution_code_name = c_distribution.as_ptr();
+    traits.distribution_version = c_version.as_ptr();
+    rime_api_call!(setup, &mut traits);
     Ok(())
 }
 
-pub fn 製備輸入法固件() -> anyhow::Result<()> {
+pub fn build_binaries() -> anyhow::Result<()> {
     log::debug!("製備輸入法固件");
     rime_api_call!(deployer_initialize, std::ptr::null_mut());
     rime_api_call!(deploy);
@@ -30,107 +30,107 @@ pub fn 製備輸入法固件() -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn 配置補丁(目標配置: &str, 紐: &str, 值: &str) -> anyhow::Result<()> {
-    log::debug!("配置補丁: {目標配置}:/{紐} = {值}");
+pub fn apply_patch(target_config: &str, key: &str, value: &str) -> anyhow::Result<()> {
+    log::debug!("配置補丁: {target_config}:/{key} = {value}");
 
-    let 目標配置〇 = CString::new(目標配置)?;
-    let 紐〇 = CString::new(紐)?;
-    let 值〇 = CString::new(值)?;
+    let c_target_config = CString::new(target_config)?;
+    let c_key = CString::new(key)?;
+    let c_value = CString::new(value)?;
 
-    let mut 值解析爲節點樹: RimeConfig = rime_struct_new!();
-    if rime_api_call!(config_load_string, &mut 值解析爲節點樹, 值〇.as_ptr()) == 0 {
-        bail!("無效的 YAML 值: {}", 值);
+    let mut config: RimeConfig = rime_struct_new!();
+    if rime_api_call!(config_load_string, &mut config, c_value.as_ptr()) == 0 {
+        bail!("無效的 YAML 值: {}", value);
     }
 
-    let levers_模塊名〇 = CString::new("levers")?;
-    let levers = rime_api_call!(find_module, levers_模塊名〇.as_ptr());
+    let c_levers_module_name = CString::new("levers")?;
+    let levers = rime_api_call!(find_module, c_levers_module_name.as_ptr());
     if levers.is_null() {
         bail!("沒有 levers 模塊");
     }
 
-    let 配置工具名稱〇 = CString::new("rime-cli")?;
-    let 自定義配置 = rime_module_call!(
+    let c_setup_tool_name = CString::new("rime-cli")?;
+    let custom_settings = rime_module_call!(
         levers => RimeLeversApi,
         custom_settings_init,
-        目標配置〇.as_ptr(),
-        配置工具名稱〇.as_ptr()
+        c_target_config.as_ptr(),
+        c_setup_tool_name.as_ptr()
     );
 
     // 可能已有自定義配置, 先加載
-    rime_module_call!(levers => RimeLeversApi, load_settings, 自定義配置);
+    rime_module_call!(levers => RimeLeversApi, load_settings, custom_settings);
     // 生成補丁
     if rime_module_call!(
         levers => RimeLeversApi,
         customize_item,
-        自定義配置,
-        紐〇.as_ptr(),
-        &mut 值解析爲節點樹
+        custom_settings,
+        c_key.as_ptr(),
+        &mut config
     ) != 0
     {
-        rime_module_call!(levers => RimeLeversApi, save_settings, 自定義配置);
-        log::info!("補丁打好了. {目標配置}:/{紐}");
+        rime_module_call!(levers => RimeLeversApi, save_settings, custom_settings);
+        log::info!("補丁打好了. {target_config}:/{key}");
     }
 
-    rime_module_call!(levers => RimeLeversApi, custom_settings_destroy, 自定義配置);
-    rime_api_call!(config_close, &mut 值解析爲節點樹);
+    rime_module_call!(levers => RimeLeversApi, custom_settings_destroy, custom_settings);
+    rime_api_call!(config_close, &mut config);
 
     Ok(())
 }
 
-pub fn 加入輸入方案列表(衆輸入方案: &[String]) -> anyhow::Result<()> {
-    log::debug!("加入輸入方案列表: {:#?}", 衆輸入方案);
+pub fn add_to_schema_list(schemata: &[String]) -> anyhow::Result<()> {
+    log::debug!("加入輸入方案列表: {:#?}", schemata);
     rime_api_call!(deployer_initialize, std::ptr::null_mut());
 
-    let mut 自定義配置: RimeConfig = rime_struct_new!();
-    let 默認配置的自定義〇 = CString::new("default.custom")?;
+    let mut default_custom: RimeConfig = rime_struct_new!();
+    let c_default_custom_name = CString::new("default.custom")?;
     rime_api_call!(
         user_config_open,
-        默認配置的自定義〇.as_ptr(),
-        &mut 自定義配置
+        c_default_custom_name.as_ptr(),
+        &mut default_custom
     );
-    let mut 既有方案 = vec![];
-    let 方案列表〇 = CString::new("patch/schema_list")?;
-    let 既有方案數 = rime_api_call!(config_list_size, &mut 自定義配置, 方案列表〇.as_ptr()) as u64;
-    for i in 0..既有方案數 {
-        let 列表項〇 = CString::new(format!("patch/schema_list/@{}/schema", i))?;
-        let 方案 = rime_api_call!(config_get_cstring, &mut 自定義配置, 列表項〇.as_ptr());
-        if !方案.is_null() {
-            既有方案.push(unsafe { CStr::from_ptr(方案) }.to_str()?.to_owned());
+    let mut exists_schemata = vec![];
+    let c_schema_list = CString::new("patch/schema_list")?;
+    let exists_schema_count = rime_api_call!(config_list_size, &mut default_custom, c_schema_list.as_ptr()) as u64;
+    for i in 0..exists_schema_count {
+        let c_schema_list_item = CString::new(format!("patch/schema_list/@{}/schema", i))?;
+        let schema = rime_api_call!(config_get_cstring, &mut default_custom, c_schema_list_item.as_ptr());
+        if !schema.is_null() {
+            exists_schemata.push(unsafe { CStr::from_ptr(schema) }.to_str()?.to_owned());
         }
     }
-    let 新增方案 = 衆輸入方案.iter().filter(|方案| !既有方案.contains(方案));
-    let 新增列表項〇 = CString::new("patch/schema_list/@next/schema")?;
-    for 方案 in 新增方案 {
-        let 方案〇 = CString::new(方案.to_owned())?;
+    let new_schemata = schemata.iter().filter(|schema| !exists_schemata.contains(schema));
+    let c_new_schema_list_item = CString::new("patch/schema_list/@next/schema")?;
+    for schema in new_schemata {
+        let c_schema = CString::new(schema.to_owned())?;
         rime_api_call!(
             config_set_string,
-            &mut 自定義配置,
-            新增列表項〇.as_ptr(),
-            方案〇.as_ptr()
+            &mut default_custom,
+            c_new_schema_list_item.as_ptr(),
+            c_schema.as_ptr()
         );
     }
-    rime_api_call!(config_close, &mut 自定義配置);
+    rime_api_call!(config_close, &mut default_custom);
 
     rime_api_call!(finalize);
     Ok(())
 }
 
-pub fn 選擇輸入方案(方案: &str) -> anyhow::Result<()> {
-    log::debug!("選擇輸入方案: {方案}");
+pub fn select_schema(schema: &str) -> anyhow::Result<()> {
+    log::debug!("選擇輸入方案: {schema}");
     rime_api_call!(deployer_initialize, std::ptr::null_mut());
 
-    let mut 用戶配置: RimeConfig = rime_struct_new!();
-    let 用戶配置〇 = CString::new("user")?;
-    rime_api_call!(user_config_open, 用戶配置〇.as_ptr(), &mut 用戶配置);
-    let 用家之選〇 = CString::new("var/previously_selected_schema")?;
-    let 方案〇 = CString::new(方案.to_owned())?;
+    let mut user_config: RimeConfig = rime_struct_new!();
+    let c_user_config = CString::new("user")?;
+    rime_api_call!(user_config_open, c_user_config.as_ptr(), &mut user_config);
+    let c_selected_schema = CString::new("var/previously_selected_schema")?;
+    let c_schema = CString::new(schema.to_owned())?;
     rime_api_call!(
         config_set_string,
-        &mut 用戶配置,
-        用家之選〇.as_ptr(),
-        方案〇.as_ptr()
+        &mut user_config,
+        c_selected_schema.as_ptr(),
+        c_schema.as_ptr()
     );
-    rime_api_call!(config_close, &mut 用戶配置);
+    rime_api_call!(config_close, &mut user_config);
 
     rime_api_call!(finalize);
     Ok(())
@@ -146,32 +146,32 @@ mod tests {
     use std::sync::{Once, RwLock};
 
     lazy_static! {
-        static ref 公共測試場地: PathBuf = std::env::temp_dir().join("rime_levers_tests");
+        static ref PUBLIC_TEST_SPACE: PathBuf = std::env::temp_dir().join("rime_levers_tests");
     }
     // 公共測試場地只需在各項測試開始之前清理一次.
-    static 預備公共測試場地: Once = Once::new();
+    static PREPARED_PUBLIC_TEST_SPACE: Once = Once::new();
     // rime::Deployer 是個單例, 同一時刻只能服務一片場地.
     // 公共場地中的測試可以並發執行, 持讀鎖. 專用場地的測試持寫鎖.
-    static 佔用引擎機位: RwLock<()> = RwLock::new(());
+    static ENGINE_LOCK: RwLock<()> = RwLock::new(());
 
-    fn 預備() {
-        預備公共測試場地.call_once(|| {
-            if 公共測試場地.exists() {
-                assert_ok!(std::fs::remove_dir_all(&*公共測試場地));
+    fn prepare() {
+        PREPARED_PUBLIC_TEST_SPACE.call_once(|| {
+            if PUBLIC_TEST_SPACE.exists() {
+                assert_ok!(std::fs::remove_dir_all(&*PUBLIC_TEST_SPACE));
             }
         });
-        assert_ok!(設置引擎啓動參數(&公共測試場地));
+        assert_ok!(setup_engine_traits(&PUBLIC_TEST_SPACE));
     }
 
     #[test]
-    fn 測試配置補丁_全局配置() {
-        let _佔 = 佔用引擎機位.read().unwrap();
-        預備();
-        assert_ok!(配置補丁("default", "menu/page_size", "5"));
+    fn test_apply_patch_for_default() {
+        let _lock = ENGINE_LOCK.read().unwrap();
+        prepare();
+        assert_ok!(apply_patch("default", "menu/page_size", "5"));
 
-        let 結果文件 = 公共測試場地.join("default.custom.yaml");
-        let 補丁文件內容 = assert_ok!(read_to_string(&結果文件));
-        assert!(補丁文件內容.contains(
+        let result_file = PUBLIC_TEST_SPACE.join("default.custom.yaml");
+        let patched_file_content = assert_ok!(read_to_string(&result_file));
+        assert!(patched_file_content.contains(
             r#"
 patch:
   "menu/page_size": 5"#
@@ -179,14 +179,14 @@ patch:
     }
 
     #[test]
-    fn 測試配置補丁_輸入方案() {
-        let _佔 = 佔用引擎機位.read().unwrap();
-        預備();
-        assert_ok!(配置補丁("ohmyrime.schema", "menu/page_size", "9"));
+    fn test_apply_patch_for_schema() {
+        let _lock = ENGINE_LOCK.read().unwrap();
+        prepare();
+        assert_ok!(apply_patch("ohmyrime.schema", "menu/page_size", "9"));
 
-        let 結果文件 = 公共測試場地.join("ohmyrime.custom.yaml");
-        let 補丁文件內容 = assert_ok!(read_to_string(&結果文件));
-        assert!(補丁文件內容.contains(
+        let result_file = PUBLIC_TEST_SPACE.join("ohmyrime.custom.yaml");
+        let patched_file_content = assert_ok!(read_to_string(&result_file));
+        assert!(patched_file_content.contains(
             r#"
 patch:
   "menu/page_size": 9"#
@@ -194,19 +194,19 @@ patch:
     }
 
     #[test]
-    fn 測試配置補丁_列表值() {
-        let _佔 = 佔用引擎機位.read().unwrap();
-        預備();
-        assert_ok!(配置補丁(
+    fn test_apply_patch_for_list_value() {
+        let _lock = ENGINE_LOCK.read().unwrap();
+        prepare();
+        assert_ok!(apply_patch(
             "patch_list",
             "starcraft/races",
             r#"[protoss, terran, zerg]"#
         ));
 
-        let 結果文件 = 公共測試場地.join("patch_list.custom.yaml");
-        let 補丁文件內容 = assert_ok!(read_to_string(&結果文件));
-        println!("補丁文件內容: {}", 補丁文件內容);
-        assert!(補丁文件內容.contains(
+        let result_file = PUBLIC_TEST_SPACE.join("patch_list.custom.yaml");
+        let patched_file_content = assert_ok!(read_to_string(&result_file));
+        println!("補丁文件內容: {}", patched_file_content);
+        assert!(patched_file_content.contains(
             r#"
 patch:
   "starcraft/races":
@@ -217,18 +217,18 @@ patch:
     }
 
     #[test]
-    fn 測試配置補丁_字典值() {
-        let _佔 = 佔用引擎機位.read().unwrap();
-        預備();
-        assert_ok!(配置補丁(
+    fn test_apply_patch_for_map_value() {
+        let _lock = ENGINE_LOCK.read().unwrap();
+        prepare();
+        assert_ok!(apply_patch(
             "patch_map",
             "starcraft/workers",
             r#"{protoss: probe, terran: scv, zerg: drone}"#
         ));
 
-        let 結果文件 = 公共測試場地.join("patch_map.custom.yaml");
-        let 補丁文件內容 = assert_ok!(read_to_string(&結果文件));
-        assert!(補丁文件內容.contains(
+        let result_file = PUBLIC_TEST_SPACE.join("patch_map.custom.yaml");
+        let patched_file_content = assert_ok!(read_to_string(&result_file));
+        assert!(patched_file_content.contains(
             r#"
 patch:
   "starcraft/workers":
@@ -239,43 +239,43 @@ patch:
     }
 
     #[test]
-    fn 測試製備輸入法固件() {
-        let _佔 = 佔用引擎機位.write().unwrap();
-        let 專用測試場地 = std::env::temp_dir().join("rime_levers_tests_build");
-        if 專用測試場地.exists() {
-            assert_ok!(std::fs::remove_dir_all(&專用測試場地));
+    fn test_build_binary() {
+        let _lock = ENGINE_LOCK.write().unwrap();
+        let specified_test_place = std::env::temp_dir().join("rime_levers_tests_build");
+        if specified_test_place.exists() {
+            assert_ok!(std::fs::remove_dir_all(&specified_test_place));
         }
-        assert_ok!(設置引擎啓動參數(&專用測試場地));
+        assert_ok!(setup_engine_traits(&specified_test_place));
         assert_ok!(write(
-            專用測試場地.join("default.yaml"),
+            specified_test_place.join("default.yaml"),
             r#"
 schema_list:
   - schema: ohmyrime
 "#,
         ));
         assert_ok!(write(
-            專用測試場地.join("ohmyrime.schema.yaml"),
+            specified_test_place.join("ohmyrime.schema.yaml"),
             r#"
 schema:
   schema_id: ohmyrime
 "#,
         ));
 
-        assert_ok!(製備輸入法固件());
+        assert_ok!(build_binaries());
 
-        assert!(專用測試場地.join("installation.yaml").exists());
-        assert!(專用測試場地.join("user.yaml").exists());
-        let 整備區 = 專用測試場地.join("build");
-        let 默認配置文件 = 整備區.join("default.yaml");
-        let 默認配置內容 = assert_ok!(read_to_string(&默認配置文件));
-        assert!(默認配置內容.contains(
+        assert!(specified_test_place.join("installation.yaml").exists());
+        assert!(specified_test_place.join("user.yaml").exists());
+        let staging_dir = specified_test_place.join("build");
+        let default_config_file = staging_dir.join("default.yaml");
+        let default_config_content = assert_ok!(read_to_string(&default_config_file));
+        assert!(default_config_content.contains(
             r#"
 schema_list:
   - schema: ohmyrime"#
         ));
-        let 輸入方案文件 = 整備區.join("ohmyrime.schema.yaml");
-        let 輸入方案內容 = assert_ok!(read_to_string(&輸入方案文件));
-        assert!(輸入方案內容.contains(
+        let schema_file = staging_dir.join("ohmyrime.schema.yaml");
+        let schema_file_content = assert_ok!(read_to_string(&schema_file));
+        assert!(schema_file_content.contains(
             r#"
 schema:
   schema_id: ohmyrime"#
@@ -283,31 +283,31 @@ schema:
     }
 
     #[test]
-    fn 測試加入輸入方案列表() {
-        let _佔 = 佔用引擎機位.write().unwrap();
-        let 專用測試場地 = std::env::temp_dir().join("rime_levers_tests_add");
-        if 專用測試場地.exists() {
-            assert_ok!(std::fs::remove_dir_all(&專用測試場地));
+    fn test_add_to_schema_list() {
+        let _lock = ENGINE_LOCK.write().unwrap();
+        let specified_test_place = std::env::temp_dir().join("rime_levers_tests_add");
+        if specified_test_place.exists() {
+            assert_ok!(std::fs::remove_dir_all(&specified_test_place));
         }
-        assert_ok!(設置引擎啓動參數(&專用測試場地));
+        assert_ok!(setup_engine_traits(&specified_test_place));
 
-        let 新增輸入方案 = vec!["protoss".to_owned(), "terran".to_owned()];
-        assert_ok!(加入輸入方案列表(&新增輸入方案));
+        let new_schemata = vec!["protoss".to_owned(), "terran".to_owned()];
+        assert_ok!(add_to_schema_list(&new_schemata));
 
-        let 自定義配置 = 專用測試場地.join("default.custom.yaml");
-        assert!(自定義配置.exists());
-        let 自定義配置內容 = assert_ok!(read_to_string(&自定義配置));
-        assert!(自定義配置內容.contains(
+        let default_custom = specified_test_place.join("default.custom.yaml");
+        assert!(default_custom.exists());
+        let default_custom_content = assert_ok!(read_to_string(&default_custom));
+        assert!(default_custom_content.contains(
             r#"patch:
   schema_list:
     - {schema: protoss}
     - {schema: terran}"#
         ));
 
-        let 新增輸入方案 = vec!["terran".to_owned(), "zerg".to_owned()];
-        assert_ok!(加入輸入方案列表(&新增輸入方案));
-        let 自定義配置內容 = assert_ok!(read_to_string(&自定義配置));
-        assert!(自定義配置內容.contains(
+        let new_schemata = vec!["terran".to_owned(), "zerg".to_owned()];
+        assert_ok!(add_to_schema_list(&new_schemata));
+        let default_custom_content = assert_ok!(read_to_string(&default_custom));
+        assert!(default_custom_content.contains(
             r#"patch:
   schema_list:
     - {schema: protoss}
@@ -317,30 +317,30 @@ schema:
     }
 
     #[test]
-    fn 測試選擇輸入方案() {
-        let _佔 = 佔用引擎機位.write().unwrap();
-        let 專用測試場地 = std::env::temp_dir().join("rime_levers_tests_select");
-        if 專用測試場地.exists() {
-            assert_ok!(std::fs::remove_dir_all(&專用測試場地));
+    fn test_select_schema() {
+        let _lock = ENGINE_LOCK.write().unwrap();
+        let specified_test_space = std::env::temp_dir().join("rime_levers_tests_select");
+        if specified_test_space.exists() {
+            assert_ok!(std::fs::remove_dir_all(&specified_test_space));
         }
-        assert_ok!(設置引擎啓動參數(&專用測試場地));
+        assert_ok!(setup_engine_traits(&specified_test_space));
 
-        let grrrr_之選 = "protoss";
-        assert_ok!(選擇輸入方案(grrrr_之選));
+        let grrrr_selection = "protoss";
+        assert_ok!(select_schema(grrrr_selection));
 
-        let 用戶配置 = 專用測試場地.join("user.yaml");
-        assert!(用戶配置.exists());
-        let 用戶配置內容 = assert_ok!(read_to_string(&用戶配置));
-        assert!(用戶配置內容.contains(
+        let user_config = specified_test_space.join("user.yaml");
+        assert!(user_config.exists());
+        let user_config_content = assert_ok!(read_to_string(&user_config));
+        assert!(user_config_content.contains(
             r#"var:
   previously_selected_schema: protoss"#
         ));
 
-        let boxer_之選 = "terran";
-        assert_ok!(選擇輸入方案(boxer_之選));
+        let boxer_selection = "terran";
+        assert_ok!(select_schema(boxer_selection));
 
-        let 用戶配置內容 = assert_ok!(read_to_string(&用戶配置));
-        assert!(用戶配置內容.contains(
+        let user_config_content = assert_ok!(read_to_string(&user_config));
+        assert!(user_config_content.contains(
             r#"var:
   previously_selected_schema: terran"#
         ));

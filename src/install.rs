@@ -1,6 +1,6 @@
-use crate::recipe::配方名片;
+use crate::recipe::RecipeInfo;
 
-pub fn 安裝配方(配方: &配方名片 /*, 參數: 配方參數 */) -> anyhow::Result<()> {
-    log::debug!("安裝配方: {配方}");
+pub fn install_recipe(recipe: &RecipeInfo /*, 參數: 配方參數 */) -> anyhow::Result<()> {
+    log::debug!("安裝配方: {recipe}");
     todo!("還沒做呢");
 }

@@ -7,16 +7,16 @@ mod package;
 mod recipe;
 mod rime_levers;
 
-use download::{下載參數, 下載配方包};
-use install::安裝配方;
-use recipe::配方名片;
+use download::{DownloadParams, download_recipe_package};
+use install::install_recipe;
+use recipe::RecipeInfo;
 use rime_levers::{
-    加入輸入方案列表, 製備輸入法固件, 設置引擎啓動參數, 選擇輸入方案, 配置補丁
+    add_to_schema_list, build_binaries, setup_engine_traits, select_schema, apply_patch
 };
 
 #[derive(Debug, StructOpt)]
 #[structopt(about = "Rime 配方管理器")]
-enum 子命令 {
+enum SubCommands {
     /// 加入輸入方案列表
     Add {
         /// 要向列表中追加的輸入方案
@@ -31,14 +31,14 @@ enum 子命令 {
         /// 要下載的配方包
         recipes: Vec<String>,
         #[structopt(flatten)]
-        下載參數: 下載參數,
+        download_params: DownloadParams,
     },
     /// 安裝配方
     Install {
         /// 要安裝的配方
         recipes: Vec<String>,
         #[structopt(flatten)]
-        下載參數: 下載參數,
+        download_params: DownloadParams,
     },
     /// 新建配方
     New {
@@ -64,48 +64,48 @@ enum 子命令 {
 fn main() -> anyhow::Result<()> {
     env_logger::init();
 
-    let 命令行參數 = 子命令::from_args();
-    log::debug!("參數: {:?}", 命令行參數);
+    let args = SubCommands::from_args();
+    log::debug!("參數: {:?}", args);
 
-    match 命令行參數 {
-        子命令::Add { schemata } => {
-            let 還不知道怎麼傳過來 = PathBuf::from(".");
-            設置引擎啓動參數(&還不知道怎麼傳過來)?;
-            加入輸入方案列表(&schemata)?;
+    match args {
+        SubCommands::Add { schemata } => {
+            let current_path = PathBuf::from(".");
+            setup_engine_traits(&current_path)?;
+            add_to_schema_list(&schemata)?;
         }
-        子命令::Build => {
-            let 還不知道怎麼傳過來 = PathBuf::from(".");
-            設置引擎啓動參數(&還不知道怎麼傳過來)?;
-            製備輸入法固件()?;
+        SubCommands::Build => {
+            let current_path = PathBuf::from(".");
+            setup_engine_traits(&current_path)?;
+            build_binaries()?;
         }
-        子命令::Download {
-            recipes, 下載參數
+        SubCommands::Download {
+            recipes, download_params
         } => {
-            let 衆配方 = recipes
+            let recipes = recipes
                 .iter()
-                .map(|rx| 配方名片::from(rx.as_str()))
+                .map(|rx| RecipeInfo::from(rx.as_str()))
                 .collect::<Vec<_>>();
-            下載配方包(&衆配方, 下載參數)?;
+            download_recipe_package(&recipes, download_params)?;
         }
-        子命令::Install {
-            recipes, 下載參數
+        SubCommands::Install {
+            recipes, download_params
         } => {
-            let 衆配方 = recipes
+            let recipes = recipes
                 .iter()
-                .map(|rx| 配方名片::from(rx.as_str()))
+                .map(|rx| RecipeInfo::from(rx.as_str()))
                 .collect::<Vec<_>>();
-            下載配方包(&衆配方, 下載參數)?;
-            for 配方 in &衆配方 {
-                安裝配方(配方)?;
+            download_recipe_package(&recipes, download_params)?;
+            for recipe in &recipes {
+                install_recipe(recipe)?;
             }
         }
-        子命令::Patch { config, key, value } => {
-            let 還不知道怎麼傳過來 = PathBuf::from(".");
-            設置引擎啓動參數(&還不知道怎麼傳過來)?;
-            配置補丁(&config, &key, &value)?;
+        SubCommands::Patch { config, key, value } => {
+            let current_path = PathBuf::from(".");
+            setup_engine_traits(&current_path)?;
+            apply_patch(&config, &key, &value)?;
         }
-        子命令::Select { schema } => {
-            選擇輸入方案(&schema)?;
+        SubCommands::Select { schema } => {
+            select_schema(&schema)?;
         }
         _ => todo!("還沒做呢"),
     }

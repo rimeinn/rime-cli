@@ -1,22 +1,22 @@
-use crate::package::配方包;
-use crate::recipe::配方名片;
+use crate::package::RecipePackage;
+use crate::recipe::RecipeInfo;
 
 use anyhow::anyhow;
 use std::path::Path;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
-pub struct 下載參數 {
-    /// 倉庫域名
+pub struct DownloadParams {
+    /// repository domain 倉庫域名
     #[structopt(short, long)]
     host: Option<String>,
-    /// 代理服務器地址
+    /// proxy server address 代理服務器地址
     #[structopt(short, long)]
     proxy: Option<String>,
 }
 
-impl 下載參數 {
-    pub fn 設置代理(&self) {
+impl DownloadParams {
+    pub fn setup_proxy(&self) {
         if let Some(proxy) = &self.proxy {
             log::debug!("設置代理 {}", proxy);
             std::env::set_var("http_proxy", proxy);
@@ -25,32 +25,32 @@ impl 下載參數 {
     }
 }
 
-pub fn 下載配方包(衆配方: &[配方名片], 參數: 下載參數) -> anyhow::Result<()> {
-    參數.設置代理();
-    for (包名, 一組配方包) in 配方包::按倉庫分組(衆配方, 參數.host.as_deref()) {
-        let 包 = 一組配方包.first().ok_or(anyhow!("至少應有一個配方包"))?;
-        log::debug!("下載配方包: {}, 位於 {}", 包名, 包.倉庫地址());
-        let 本地倉庫 = 包.本地路徑();
-        if 本地倉庫.exists() {
-            同步既存倉庫(包, &本地倉庫)?;
+pub fn download_recipe_package(recipes: &[RecipeInfo], params: DownloadParams) -> anyhow::Result<()> {
+    params.setup_proxy();
+    for (package_name, packages) in RecipePackage::group_by_repository(recipes, params.host.as_deref()) {
+        let package = packages.first().ok_or(anyhow!("至少應有一個配方包"))?;
+        log::debug!("下載配方包: {}, 位於 {}", package_name, package.repository_url());
+        let local_repository = package.local_path();
+        if local_repository.exists() {
+            sync_exists_repository(package, &local_repository)?;
         } else {
-            搬運倉庫(包, &本地倉庫)?;
+            clone_repository(package, &local_repository)?;
         }
     }
     Ok(())
 }
 
-fn 搬運倉庫(包: &配方包, 本地路徑: &Path) -> anyhow::Result<()> {
-    let 網址 = &包.倉庫地址();
-    let 分支 = 包.倉庫分支();
-    git::clone(網址, 分支, 本地路徑)?;
+fn clone_repository(package: &RecipePackage, local_path: &Path) -> anyhow::Result<()> {
+    let url = &package.repository_url();
+    let branch = package.repository_branch();
+    git::clone(url, branch, local_path)?;
     Ok(())
 }
 
-fn 同步既存倉庫(包: &配方包, 本地路徑: &Path) -> anyhow::Result<()> {
-    const 遠端代號: &str = "origin";
-    let 遠端分支 = 包.倉庫分支().unwrap_or("master");
-    git::pull(本地路徑, 遠端代號, 遠端分支)?;
+fn sync_exists_repository(package: &RecipePackage, local_path: &Path) -> anyhow::Result<()> {
+    const REMOTE_NAME: &str = "origin";
+    let remote_branch = package.repository_branch().unwrap_or("master");
+    git::pull(local_path, REMOTE_NAME, remote_branch)?;
     Ok(())
 }
 
@@ -335,19 +335,19 @@ mod tests {
 
     #[ignore]
     #[test]
-    fn 測試搬運倉庫() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_clone_repository() -> Result<(), Box<dyn std::error::Error>> {
         let tmp_dir = tempfile::tempdir()?;
-        let 本地測試路徑 = tmp_dir.path().join("test-clone");
-        搬運倉庫(
-            &配方包 {
-                配方: 配方名片 {
-                    方家: "lotem".to_string(),
-                    名字: "rime-cli".to_string(),
-                    版本: None,
+        let local_test_path = tmp_dir.path().join("test-clone");
+        clone_repository(
+            &RecipePackage {
+                recipe: RecipeInfo {
+                    author: "lotem".to_string(),
+                    name: "rime-cli".to_string(),
+                    version: None,
                 },
-                倉庫域名: None,
+                host: None,
             },
-            &本地測試路徑,
+            &local_test_path,
         )?;
         Ok(())
     }
