@@ -82,9 +82,9 @@ mod tests {
 
     #[test]
     fn test_recipe_info_name_and_version_only() {
-        let 配方 = RecipeInfo::from("bopomofo@master");
-        assert_eq!(配方.author, "rime");
-        assert_eq!(配方.name, "rime-bopomofo");
-        assert_eq!(配方.version, Some("master".to_owned()));
+        let recipe = RecipeInfo::from("bopomofo@master");
+        assert_eq!(recipe.author, "rime");
+        assert_eq!(recipe.name, "rime-bopomofo");
+        assert_eq!(recipe.version, Some("master".to_owned()));
     }
 }
