@@ -69,6 +69,19 @@ pub enum SubCommands {
         #[arg(help = fl!("clap-add-schemata-help"))]
         schemata: Vec<String>,
     },
+    /// Remove from schema list
+    #[command(
+        visible_alias = "del",
+        visible_alias = "rm",
+        about = fl!("clap-remove-help"),
+        help_template = &*HELP_TEMPLATE
+    )]
+    #[command(next_help_heading = &**ARG_HELP_HEADING)]
+    Remove {
+        /// Schema(ta) to remove from schema list
+        #[arg(help = fl!("clap-remove-schemata-help"))]
+        schemata: Vec<String>,
+    },
     /// Build binaries
     #[command(about = fl!("clap-build-help"), help_template = &*HELP_TEMPLATE)]
     #[command(next_help_heading = &**ARG_HELP_HEADING)]

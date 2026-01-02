@@ -115,6 +115,49 @@ pub fn add_to_schema_list(schemata: &[String]) -> anyhow::Result<()> {
     Ok(())
 }
 
+pub fn remove_from_schema_list(schemata: &[String]) -> anyhow::Result<()> {
+    rime_api_call!(deployer_initialize, std::ptr::null_mut());
+
+    let mut default_custom: RimeConfig = rime_struct_new!();
+    let c_default_custom_name = CString::new("default.custom")?;
+    rime_api_call!(
+        user_config_open,
+        c_default_custom_name.as_ptr(),
+        &mut default_custom
+    );
+    let mut exists_schemata = vec![];
+    let c_schema_list = CString::new("patch/schema_list")?;
+    let exists_schema_count = rime_api_call!(config_list_size, &mut default_custom, c_schema_list.as_ptr()) as u64;
+    for i in 0..exists_schema_count {
+        let c_schema_list_item = CString::new(format!("patch/schema_list/@{}/schema", i))?;
+        let schema = rime_api_call!(config_get_cstring, &mut default_custom, c_schema_list_item.as_ptr());
+        if !schema.is_null() {
+            exists_schemata.push(unsafe { CStr::from_ptr(schema) }.to_str()?.to_owned());
+        }
+    }
+
+    rime_api_call!(
+        config_create_list,
+        &mut default_custom,
+        c_schema_list.as_ptr()
+    );
+    let filtered_schemata = exists_schemata.iter().filter(|schema| !schemata.contains(schema));
+    for (i, schema) in filtered_schemata.enumerate() {
+        let c_schema_list_item = CString::new(format!("patch/schema_list/@{}/schema", i))?;
+        let c_schema =  CString::new(schema.to_owned())?;
+        rime_api_call!(
+            config_set_string,
+            &mut default_custom,
+            c_schema_list_item.as_ptr(),
+            c_schema.as_ptr()
+        );
+    }
+    rime_api_call!(config_close, &mut default_custom);
+
+    rime_api_call!(finalize);
+    Ok(())
+}
+
 pub fn select_schema(schema: &str) -> anyhow::Result<()> {
     log::debug!("選擇輸入方案: {schema}");
     rime_api_call!(deployer_initialize, std::ptr::null_mut());
@@ -311,6 +354,40 @@ schema:
   schema_list:
     - {schema: protoss}
     - {schema: terran}
+    - {schema: zerg}"#
+        ));
+    }
+
+    #[test]
+    fn test_remove_from_schema_list() {
+        let _lock = ENGINE_LOCK.write().unwrap();
+        let specified_test_place = std::env::temp_dir().join("rime_levers_tests_add");
+        if specified_test_place.exists() {
+            assert_ok!(std::fs::remove_dir_all(&specified_test_place));
+        }
+        assert_ok!(setup_engine_traits(&specified_test_place));
+
+        let new_schemata = vec!["protoss".to_owned(), "terran".to_owned(), "zerg".to_owned()];
+        assert_ok!(add_to_schema_list(&new_schemata));
+
+        let default_custom = specified_test_place.join("default.custom.yaml");
+        assert!(default_custom.exists());
+        let default_custom_content = assert_ok!(read_to_string(&default_custom));
+        assert!(default_custom_content.contains(
+            r#"patch:
+  schema_list:
+    - {schema: protoss}
+    - {schema: terran}
+    - {schema: zerg}"#
+        ));
+
+        let schemata_to_remove = vec!["protoss".to_owned(), "terran".to_owned()];
+        assert_ok!(remove_from_schema_list(&schemata_to_remove));
+
+        let default_custom_content = assert_ok!(read_to_string(&default_custom));
+        assert!(default_custom_content.contains(
+            r#"patch:
+  schema_list:
     - {schema: zerg}"#
         ));
     }

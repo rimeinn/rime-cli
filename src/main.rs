@@ -19,7 +19,7 @@ use rime_levers::{
     add_to_schema_list, apply_patch, build_binaries, select_schema, setup_engine_traits,
 };
 
-use crate::cli::{Program, SubCommands};
+use crate::{cli::{Program, SubCommands}, rime_levers::remove_from_schema_list};
 
 fn init_localizer() {
     let localizer = crate::lang::localizer();
@@ -55,6 +55,11 @@ fn main() -> anyhow::Result<()> {
             let current_path = PathBuf::from(".");
             setup_engine_traits(&current_path)?;
             add_to_schema_list(&schemata)?;
+        }
+        SubCommands::Remove { schemata } => {
+            let current_path = PathBuf::from(".");
+            setup_engine_traits(&current_path)?;
+            remove_from_schema_list(&schemata)?;
         }
         SubCommands::Build => {
             let current_path = PathBuf::from(".");

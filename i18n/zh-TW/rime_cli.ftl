@@ -5,6 +5,7 @@ clap-options = 選項
 clap-usage = 用法
 clap-about = Rime 配方管理器
 clap-add-help = 加入輸入方案列表
+clap-remove-help = 从输入法方案列表中移除
 clap-build-help = 構建輸入法固件
 clap-deploy-help = 部署輸入法固件到目標位置
 clap-download-help = 下載配方包
@@ -17,6 +18,7 @@ clap-help = 顯示幫助資訊
 
 # calp: command-specific options
 clap-add-schemata-help = 要向列表中追加的輸入方案
+clap-remove-schemata-help = 要从列表中移除的輸入方案
 clap-download-recipes-help = 要下載的配方包
 clap-install-recipes-help = 要安裝的配方
 clap-download-host-help = 倉庫域名
