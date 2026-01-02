@@ -1,17 +1,18 @@
+use crate::fl;
 use crate::package::RecipePackage;
 use crate::recipe::RecipeInfo;
 
 use anyhow::anyhow;
-use clap::Parser;
+use clap::Args;
 use std::path::Path;
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Args)]
 pub struct DownloadParams {
-    /// repository domain 倉庫域名
-    #[arg(short, long)]
+    /// Repository domain
+    #[arg(long, help = fl!("clap-download-host-help"), display_order = 1)]
     host: Option<String>,
-    /// proxy server address 代理服務器地址
-    #[arg(short, long)]
+    /// Proxy server URL
+    #[arg(long, help = fl!("clap-download-proxy-help"), display_order = 2)]
     proxy: Option<String>,
 }
 

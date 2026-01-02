@@ -1,76 +1,45 @@
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, FromArgMatches};
+use clap_i18n_richformatter::CommandI18nExt;
 use std::path::PathBuf;
 
+mod cli;
 mod download;
 mod install;
+mod lang;
 mod package;
 mod recipe;
 mod rime_levers;
 
-use download::{download_recipe_package, DownloadParams};
+use download::download_recipe_package;
 use install::install_recipe;
+use i18n_embed::{DesktopLanguageRequester, Localizer};
+use lang::LANGUAGE_LOADER;
 use recipe::RecipeInfo;
 use rime_levers::{
     add_to_schema_list, apply_patch, build_binaries, select_schema, setup_engine_traits,
 };
 
-#[derive(Debug, Parser)]
-#[command(about, author, version, arg_required_else_help(true))]
-struct Program {
-    #[command(subcommand)]
-    subcommands: Option<SubCommands>,
-}
+use crate::cli::{Program, SubCommands};
 
-#[derive(Debug, Subcommand)]
-enum SubCommands {
-    /// 加入輸入方案列表
-    Add {
-        /// 要向列表中追加的輸入方案
-        schemata: Vec<String>,
-    },
-    /// 構建輸入法固件
-    Build,
-    /// 部署輸入法固件到目標位置
-    Deploy,
-    /// 下載配方包
-    Download {
-        /// 要下載的配方包
-        recipes: Vec<String>,
-        #[command(flatten)]
-        download_params: DownloadParams,
-    },
-    /// 安裝配方
-    Install {
-        /// 要安裝的配方
-        recipes: Vec<String>,
-        #[command(flatten)]
-        download_params: DownloadParams,
-    },
-    /// 新建配方
-    New {
-        /// 配方名字
-        _name: Option<String>,
-    },
-    /// 配置補丁
-    Patch {
-        /// 目標配置
-        config: String,
-        /// 紐
-        key: String,
-        /// 值
-        value: String,
-    },
-    /// 選擇輸入方案
-    Select {
-        /// 選中的輸入方案
-        schema: String,
-    },
+fn init_localizer() {
+    let localizer = crate::lang::localizer();
+    let requested_languages = DesktopLanguageRequester::requested_languages();
+
+    if let Err(error) = localizer.select(&requested_languages) {
+        eprintln!("Error while loading languages for library_fluent {error}");
+    }
+
+    // Windows Terminal doesn't support bidirectional (BiDi) text, and renders the isolate characters incorrectly.
+    // This is a temporary workaround for https://github.com/microsoft/terminal/issues/16574
+    // TODO: this might break BiDi text, though we don't support any writing system depends on that.
+    LANGUAGE_LOADER.set_use_isolating(false);
 }
 
 fn main() -> anyhow::Result<()> {
+    init_localizer();
     env_logger::init();
 
-    let args = Program::parse();
+    let args = parse_args();
 
     if let Some(s) = args.subcommands {
         log::debug!("參數: {:?}", s);
@@ -121,4 +90,18 @@ fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn parse_args() -> Program {
+    let matches = Program::command().get_matches_i18n();
+
+    let program = match Program::from_arg_matches(&matches).map_err(|e| {
+        let mut cmd = Program::command();
+        e.format(&mut cmd)
+    }) {
+        Ok(program) => program,
+        Err(e) => e.exit(),
+    };
+
+    program
 }
