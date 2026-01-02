@@ -141,13 +141,12 @@ mod tests {
     use super::*;
 
     use claims::assert_ok;
-    use lazy_static::lazy_static;
+    use once_cell::sync::Lazy;
     use std::fs::{read_to_string, write};
     use std::sync::{Once, RwLock};
 
-    lazy_static! {
-        static ref PUBLIC_TEST_SPACE: PathBuf = std::env::temp_dir().join("rime_levers_tests");
-    }
+    static PUBLIC_TEST_SPACE: Lazy<PathBuf> = Lazy::new(|| std::env::temp_dir().join("rime_levers_tests"));
+
     // 公共測試場地只需在各項測試開始之前清理一次.
     static PREPARED_PUBLIC_TEST_SPACE: Once = Once::new();
     // rime::Deployer 是個單例, 同一時刻只能服務一片場地.
