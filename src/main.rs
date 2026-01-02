@@ -11,8 +11,8 @@ mod recipe;
 mod rime_levers;
 
 use download::download_recipe_package;
-use install::install_recipe;
 use i18n_embed::{DesktopLanguageRequester, Localizer};
+use install::install_recipe;
 use lang::LANGUAGE_LOADER;
 use recipe::RecipeInfo;
 use rime_levers::{
@@ -41,52 +41,58 @@ fn main() -> anyhow::Result<()> {
 
     let args = parse_args();
 
-    if let Some(s) = args.subcommands {
-        log::debug!("參數: {:?}", s);
-        match s {
-            SubCommands::Add { schemata } => {
-                let current_path = PathBuf::from(".");
-                setup_engine_traits(&current_path)?;
-                add_to_schema_list(&schemata)?;
-            }
-            SubCommands::Build => {
-                let current_path = PathBuf::from(".");
-                setup_engine_traits(&current_path)?;
-                build_binaries()?;
-            }
-            SubCommands::Download {
-                recipes,
-                download_params,
-            } => {
-                let recipes = recipes
-                    .iter()
-                    .map(|rx| RecipeInfo::from(rx.as_str()))
-                    .collect::<Vec<_>>();
-                download_recipe_package(&recipes, download_params)?;
-            }
-            SubCommands::Install {
-                recipes,
-                download_params,
-            } => {
-                let recipes = recipes
-                    .iter()
-                    .map(|rx| RecipeInfo::from(rx.as_str()))
-                    .collect::<Vec<_>>();
-                download_recipe_package(&recipes, download_params)?;
-                for recipe in &recipes {
-                    install_recipe(recipe)?;
-                }
-            }
-            SubCommands::Patch { config, key, value } => {
-                let current_path = PathBuf::from(".");
-                setup_engine_traits(&current_path)?;
-                apply_patch(&config, &key, &value)?;
-            }
-            SubCommands::Select { schema } => {
-                select_schema(&schema)?;
-            }
-            _ => todo!("還沒做呢"),
+    let subcmd = args.subcommands;
+    if subcmd.is_none() {
+        Program::command().print_help()?;
+        return Ok(());
+    }
+
+    let subcmd = subcmd.unwrap();
+    log::debug!("參數: {:?}", subcmd);
+
+    match subcmd {
+        SubCommands::Add { schemata } => {
+            let current_path = PathBuf::from(".");
+            setup_engine_traits(&current_path)?;
+            add_to_schema_list(&schemata)?;
         }
+        SubCommands::Build => {
+            let current_path = PathBuf::from(".");
+            setup_engine_traits(&current_path)?;
+            build_binaries()?;
+        }
+        SubCommands::Download {
+            recipes,
+            download_params,
+        } => {
+            let recipes = recipes
+                .iter()
+                .map(|rx| RecipeInfo::from(rx.as_str()))
+                .collect::<Vec<_>>();
+            download_recipe_package(&recipes, download_params)?;
+        }
+        SubCommands::Install {
+            recipes,
+            download_params,
+        } => {
+            let recipes = recipes
+                .iter()
+                .map(|rx| RecipeInfo::from(rx.as_str()))
+                .collect::<Vec<_>>();
+            download_recipe_package(&recipes, download_params)?;
+            for recipe in &recipes {
+                install_recipe(recipe)?;
+            }
+        }
+        SubCommands::Patch { config, key, value } => {
+            let current_path = PathBuf::from(".");
+            setup_engine_traits(&current_path)?;
+            apply_patch(&config, &key, &value)?;
+        }
+        SubCommands::Select { schema } => {
+            select_schema(&schema)?;
+        }
+        _ => todo!("還沒做呢"),
     }
 
     Ok(())
