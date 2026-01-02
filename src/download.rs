@@ -65,6 +65,14 @@ mod git {
     use std::cell::RefCell;
     use std::io::{self, Write};
     use std::path::{Path, PathBuf};
+    use std::sync::LazyLock;
+
+    static GIT_PROGRESS: LazyLock<ProgressStyle> = LazyLock::new(|| {
+        ProgressStyle::default_bar()
+                .template("{spinner:.green} [{elapsed_precise}] [{bar:40}] [eta: {eta}]\n  {msg}")
+                .unwrap()
+                .progress_chars("█>-")
+    });
 
     fn update_progress_bar(state: &mut State) {
         if let Some(progress) = &state.progress {
@@ -125,12 +133,7 @@ mod git {
 
     pub fn clone(url: &str, branch: Option<&str>, path: &Path) -> Result<(), git2::Error> {
         let pb = ProgressBar::new(0);
-        pb.set_style(
-            ProgressStyle::default_bar()
-                .template("{spinner:.green} [{elapsed_precise}] [{bar:40}] [eta: {eta}]\n  {msg}")
-                .unwrap()
-                .progress_chars("█>-"),
-        );
+        pb.set_style(GIT_PROGRESS.clone());
         let pb_clone = pb.clone();
         let state = RefCell::new(State {
             progress: None,
