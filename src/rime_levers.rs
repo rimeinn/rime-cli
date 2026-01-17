@@ -1,6 +1,6 @@
-use anyhow::{anyhow, bail};
+use anyhow::{Ok, anyhow, bail};
 use rime::{
-    rime_api_call, rime_module_call, rime_struct_new, RimeConfig, RimeLeversApi, RimeTraits,
+    RimeConfig, RimeCustomSettings, RimeLeversApi, RimeSchemaList, RimeTraits, rime_api_call, rime_module_call, rime_struct_new
 };
 use std::ffi::{CStr, CString};
 use std::path::PathBuf;
@@ -156,6 +156,82 @@ pub fn remove_from_schema_list(schemata: &[String]) -> anyhow::Result<()> {
 
     rime_api_call!(finalize);
     Ok(())
+}
+
+pub fn selected_schemata() -> anyhow::Result<Vec<String>> {
+    log::debug!("get selected schema list");
+
+    let c_levers_module_name = CString::new("levers")?;
+    let levers = rime_api_call!(find_module, c_levers_module_name.as_ptr());
+    if levers.is_null() {
+        bail!("沒有 levers 模塊");
+    }
+
+    let switcher_settings = rime_module_call!(
+        levers => RimeLeversApi,
+        switcher_settings_init
+    );
+
+    rime_module_call!(levers => RimeLeversApi, load_settings, switcher_settings as *mut RimeCustomSettings);
+
+    let mut selected = vec![];
+    let mut c_selected: RimeSchemaList = rime_struct_new!();
+    rime_module_call!(
+        levers => RimeLeversApi,
+        get_selected_schema_list,
+        switcher_settings,
+        &mut c_selected
+    );
+    for i in 0..c_selected.size {
+        let c_schema_list_item = unsafe { *(c_selected.list).add(i) };
+        let c_schema_id = c_schema_list_item.schema_id;
+        if !c_schema_id.is_null() {
+            selected.push(unsafe { CStr::from_ptr(c_schema_id) }.to_str()?.to_owned());
+        }
+    }
+
+    rime_module_call!(levers => RimeLeversApi, schema_list_destroy, &mut c_selected);
+    rime_module_call!(levers => RimeLeversApi, custom_settings_destroy, switcher_settings as *mut RimeCustomSettings);
+
+    Ok(selected)
+}
+
+pub fn available_schemata() -> anyhow::Result<Vec<String>> {
+    log::debug!("get available schema list");
+
+    let c_levers_module_name = CString::new("levers")?;
+    let levers = rime_api_call!(find_module, c_levers_module_name.as_ptr());
+    if levers.is_null() {
+        bail!("沒有 levers 模塊");
+    }
+
+    let switcher_settings = rime_module_call!(
+        levers => RimeLeversApi,
+        switcher_settings_init
+    );
+
+    rime_module_call!(levers => RimeLeversApi, load_settings, switcher_settings as *mut RimeCustomSettings);
+
+    let mut available = vec![];
+    let mut c_available: RimeSchemaList = rime_struct_new!();
+    rime_module_call!(
+        levers => RimeLeversApi,
+        get_available_schema_list,
+        switcher_settings,
+        &mut c_available
+    );
+    for i in 0..c_available.size {
+        let c_schema_list_item = unsafe { *(c_available.list).add(i) };
+        let c_schema_id = c_schema_list_item.schema_id;
+        if !c_schema_id.is_null() {
+            available.push(unsafe { CStr::from_ptr(c_schema_id) }.to_str()?.to_owned());
+        }
+    }
+
+    rime_module_call!(levers => RimeLeversApi, schema_list_destroy, &mut c_available);
+    rime_module_call!(levers => RimeLeversApi, custom_settings_destroy, switcher_settings as *mut RimeCustomSettings);
+
+    Ok(available)
 }
 
 pub fn select_schema(schema: &str) -> anyhow::Result<()> {

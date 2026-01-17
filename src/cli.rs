@@ -138,6 +138,22 @@ pub enum SubCommands {
         #[arg(help = fl!("clap-patch-value-help"))]
         value: String,
     },
+    // List schemata
+    #[command(
+        visible_alias = "ls",
+        about = fl!("clap-list-help"),
+        arg_required_else_help = true,
+        help_template = &*HELP_TEMPLATE
+    )]
+    #[command(next_help_heading = &**ARG_HELP_HEADING)]
+    List {
+        /// Seleted schemata
+        #[arg(short, long, help = fl!("clap-list-selected-help"))]
+        selected: bool,
+        /// Available schemata
+        #[arg(short, long, help = fl!("clap-list-available-help"))]
+        available: bool,
+    },
     /// Select schema
     #[command(about = fl!("clap-select-help"), help_template = &*HELP_TEMPLATE)]
     #[command(next_help_heading = &**ARG_HELP_HEADING)]
